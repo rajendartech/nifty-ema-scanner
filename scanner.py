@@ -1,3 +1,4 @@
+import yfinance as yf
 import pandas as pd
 import concurrent.futures
 from datetime import datetime, time as dt_time
@@ -91,75 +92,74 @@ def analyze_stock(symbol: str, config: dict) -> dict | None:
             return None
 
         df_5m = apply_indicators(df_5m, ema_fast, ema_slow)
-        last   = df_5m.iloc[-1]
-        prev   = df_5m.iloc[-2]
 
         fast_col = f"EMA_{ema_fast}"
         slow_col = f"EMA_{ema_slow}"
 
-        if pd.isna(last[fast_col]) or pd.isna(last[slow_col]):
-            return None
-        if pd.isna(prev[fast_col]) or pd.isna(prev[slow_col]):
-            return None
+        # ── Check last 3 candles for a signal ───────────────────────────────
+        # This ensures signals stay on the dashboard for at least 15 mins
+        lookback = 3
+        best_res = None
+        
+        for i in range(1, lookback + 1):
+            idx = -i
+            prev_idx = -i - 1
+            
+            last = df_5m.iloc[idx]
+            prev = df_5m.iloc[prev_idx]
+            
+            cross_up   = _crossover_up(prev[fast_col], prev[slow_col], last[fast_col], last[slow_col])
+            cross_down = _crossover_down(prev[fast_col], prev[slow_col], last[fast_col], last[slow_col])
+            
+            if not (cross_up or cross_down):
+                continue
 
-        cross_up   = _crossover_up(prev[fast_col], prev[slow_col], last[fast_col], last[slow_col])
-        cross_down = _crossover_down(prev[fast_col], prev[slow_col], last[fast_col], last[slow_col])
+            # ── Daily data (only fetch once if needed) ───────────────────────
+            df_1d = fetch_daily_data(symbol, period="1y")
+            if df_1d.empty or len(df_1d) < 2:
+                return None
 
-        if not (cross_up or cross_down):
-            return None  # No crossover → skip expensive daily fetch
+            df_1d = apply_daily_indicators(df_1d)
+            d_last = df_1d.iloc[-1]
+            d_prev = df_1d.iloc[-2]
 
-        # ── Daily data ───────────────────────────────────────────────────────
-        df_1d = fetch_daily_data(symbol, period="1y")
-        if df_1d.empty or len(df_1d) < 2:
-            return None
+            above_sma50  = ("SMA_50"  in d_last and not pd.isna(d_last["SMA_50"])  and d_last["Close"] > d_last["SMA_50"])
+            below_sma50  = ("SMA_50"  in d_last and not pd.isna(d_last["SMA_50"])  and d_last["Close"] < d_last["SMA_50"])
+            above_prev_high = d_last["Close"] > d_prev["High"]
 
-        df_1d = apply_daily_indicators(df_1d)
-        d_last = df_1d.iloc[-1]
-        d_prev = df_1d.iloc[-2]
+            current_price = round(float(last["Close"]), 2)
+            ema_fast_val  = round(float(last[fast_col]), 2)
+            ema_slow_val  = round(float(last[slow_col]), 2)
+            volume        = int(last["Volume"])
+            signal_time   = last.name.strftime("%H:%M") # Format for dashboard
 
-        # Daily filters
-        above_sma50  = ("SMA_50"  in d_last and not pd.isna(d_last["SMA_50"])  and d_last["Close"] > d_last["SMA_50"])
-        below_sma50  = ("SMA_50"  in d_last and not pd.isna(d_last["SMA_50"])  and d_last["Close"] < d_last["SMA_50"])
-        above_prev_high = d_last["Close"] > d_prev["High"]
+            sl_pct = 0.5 / 100
+            signal = None
+            
+            if cross_up and above_sma50 and above_prev_high:
+                signal = "BUY"
+                stop_loss = round(current_price * (1 - sl_pct), 2)
+                target    = round(current_price + 2 * (current_price - stop_loss), 2)
+            elif cross_down and below_sma50:
+                signal = "SELL"
+                stop_loss = round(current_price * (1 + sl_pct), 2)
+                target    = round(current_price - 2 * (stop_loss - current_price), 2)
 
-        current_price = round(float(last["Close"]), 2)
-        ema_fast_val  = round(float(last[fast_col]), 2)
-        ema_slow_val  = round(float(last[slow_col]), 2)
-        volume        = int(last["Volume"])
-        signal_time   = last.name.strftime("%Y-%m-%d %H:%M")
+            if signal:
+                best_res = {
+                    "Stock Symbol": symbol,
+                    "Signal Type":  signal,
+                    "Signal Time":  signal_time,
+                    "Current Price": current_price,
+                    f"EMA{ema_fast}": ema_fast_val,
+                    f"EMA{ema_slow}": ema_slow_val,
+                    "Stop Loss":    stop_loss,
+                    "Target":       target,
+                    "Volume":       volume,
+                }
+                break # Found latest signal
 
-        # ── Risk levels ──────────────────────────────────────────────────────
-        atr = float(df_5m["Close"].rolling(14).std().iloc[-1]) if len(df_5m) >= 14 else current_price * 0.005
-        sl_pct = 0.5 / 100  # 0.5 % default stop-loss
-
-        signal = None
-        stop_loss = None
-        target    = None
-
-        if cross_up and above_sma50 and above_prev_high:
-            signal    = "BUY"
-            stop_loss = round(current_price * (1 - sl_pct), 2)
-            target    = round(current_price + 2 * (current_price - stop_loss), 2)  # 2 : 1 RR
-
-        elif cross_down and below_sma50:
-            signal    = "SELL"
-            stop_loss = round(current_price * (1 + sl_pct), 2)
-            target    = round(current_price - 2 * (stop_loss - current_price), 2)
-
-        if signal is None:
-            return None
-
-        return {
-            "Stock Symbol": symbol,
-            "Signal Type":  signal,
-            "Signal Time":  signal_time,
-            "Current Price": current_price,
-            f"EMA{ema_fast}": ema_fast_val,
-            f"EMA{ema_slow}": ema_slow_val,
-            "Stop Loss":    stop_loss,
-            "Target":       target,
-            "Volume":       volume,
-        }
+        return best_res
 
     except Exception as e:
         print(f"[analyze] {symbol}: {e}")
