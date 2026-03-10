@@ -1,5 +1,8 @@
 # List of Indian Stock Market (NSE) symbols
 
+# Indices
+INDICES = ["^NSEI", "^NSEBANK"]
+
 # NIFTY 50 Symbols
 NIFTY50 = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS",

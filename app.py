@@ -10,7 +10,7 @@ from datetime import datetime
 import pytz
 
 from scanner import scan_all, is_market_open
-from symbols import NIFTY50, NIFTY100, NIFTY200
+from symbols import NIFTY50, NIFTY100, NIFTY200, INDICES
 
 # ─── Environment Setup ───────────────────────────────────────────────────────
 _PLYER = False
@@ -121,9 +121,9 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("## 📊 Stock Universe")
-    list_opts = ["NIFTY50", "NIFTY100", "NIFTY200", "Custom"]
+    list_opts = ["Indices", "NIFTY50", "NIFTY100", "NIFTY200", "Custom"]
     if config["stocks_list"] not in list_opts:
-        config["stocks_list"] = "NIFTY50"
+        config["stocks_list"] = "Indices"
     config["stocks_list"] = st.selectbox("Stock list", list_opts, index=list_opts.index(config["stocks_list"]))
     if config["stocks_list"] == "Custom":
         config["custom_symbols"] = st.text_area(
@@ -186,6 +186,8 @@ def trigger_alert(symbol: str, sig_type: str, price: float):
 
 
 def get_symbols() -> list[str]:
+    if config["stocks_list"] == "Indices":
+        return INDICES
     if config["stocks_list"] == "NIFTY50":
         return NIFTY50
     if config["stocks_list"] == "NIFTY100":
