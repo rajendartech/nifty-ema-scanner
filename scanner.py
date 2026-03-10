@@ -51,6 +51,8 @@ def apply_indicators(df: pd.DataFrame, ema_fast: int, ema_slow: int) -> pd.DataF
 
 def apply_daily_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Add daily SMA indicators using native pandas."""
+    if len(df) >= 20:
+        df["SMA_20"] = df["Close"].rolling(window=20).mean()
     if len(df) >= 50:
         df["SMA_50"] = df["Close"].rolling(window=50).mean()
     if len(df) >= 100:
@@ -121,26 +123,25 @@ def analyze_stock(symbol: str, config: dict) -> dict | None:
 
             df_1d = apply_daily_indicators(df_1d)
             d_last = df_1d.iloc[-1]
-            d_prev = df_1d.iloc[-2]
 
-            above_sma50  = ("SMA_50"  in d_last and not pd.isna(d_last["SMA_50"])  and d_last["Close"] > d_last["SMA_50"])
-            below_sma50  = ("SMA_50"  in d_last and not pd.isna(d_last["SMA_50"])  and d_last["Close"] < d_last["SMA_50"])
-            above_prev_high = d_last["Close"] > d_prev["High"]
+            # ── Daily Trend Rules ──────────────────────────────────────────
+            above_sma20  = ("SMA_20"  in d_last and not pd.isna(d_last["SMA_20"])  and d_last["Close"] > d_last["SMA_20"])
+            below_sma20  = ("SMA_20"  in d_last and not pd.isna(d_last["SMA_20"])  and d_last["Close"] < d_last["SMA_20"])
 
             current_price = round(float(last["Close"]), 2)
             ema_fast_val  = round(float(last[fast_col]), 2)
             ema_slow_val  = round(float(last[slow_col]), 2)
             volume        = int(last["Volume"])
-            signal_time   = last.name.strftime("%H:%M") # Format for dashboard
+            signal_time   = last.name.strftime("%H:%M")
 
             sl_pct = 0.5 / 100
             signal = None
             
-            if cross_up and above_sma50 and above_prev_high:
+            if cross_up and above_sma20:
                 signal = "BUY"
                 stop_loss = round(current_price * (1 - sl_pct), 2)
                 target    = round(current_price + 2 * (current_price - stop_loss), 2)
-            elif cross_down and below_sma50:
+            elif cross_down and below_sma20:
                 signal = "SELL"
                 stop_loss = round(current_price * (1 + sl_pct), 2)
                 target    = round(current_price - 2 * (stop_loss - current_price), 2)
