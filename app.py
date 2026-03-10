@@ -12,18 +12,9 @@ import pytz
 from scanner import scan_all, is_market_open
 from symbols import NIFTY50, NIFTY100, NIFTY200
 
-# ─── Optional imports (graceful degradation on Linux/mobile) ──────────────────
-try:
-    from plyer import notification as plyer_notification
-    _PLYER = True
-except Exception:
-    _PLYER = False
-
-try:
-    import winsound
-    _WINSOUND = True
-except Exception:
-    _WINSOUND = False
+# ─── Environment Setup ───────────────────────────────────────────────────────
+_PLYER = False
+_WINSOUND = False
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -143,8 +134,9 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("## 🔔 Alerts")
-    config["sound_alert"]   = st.toggle("Sound alert",   value=bool(config.get("sound_alert", True)))
-    config["desktop_alert"] = st.toggle("Desktop popup", value=bool(config.get("desktop_alert", True)))
+    st.info("Desktop/Sound alerts are disabled on Cloud. Use Telegram below for mobile alerts.")
+    config["sound_alert"]   = False
+    config["desktop_alert"] = False
 
     st.markdown("---")
     st.markdown("## 📱 Telegram")
