@@ -328,8 +328,8 @@ with tab_chart:
                 else:
                     fast = int(config["ema9"])
                     slow = int(config["ema21"])
-                    df_chart[f"EMA_{fast}"] = pta.ema(df_chart["Close"], length=fast)
-                    df_chart[f"EMA_{slow}"] = pta.ema(df_chart["Close"], length=slow)
+                    df_chart[f"EMA_{fast}"] = df_chart["Close"].ewm(span=fast, adjust=False).mean()
+                    df_chart[f"EMA_{slow}"] = df_chart["Close"].ewm(span=slow, adjust=False).mean()
 
                     fig = go.Figure()
                     fig.add_trace(go.Candlestick(

@@ -1,6 +1,4 @@
-import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
 import concurrent.futures
 from datetime import datetime, time as dt_time
 import pytz
@@ -42,22 +40,22 @@ def fetch_daily_data(symbol: str, period: str = "3mo") -> pd.DataFrame:
 # ─── Indicator Calculation ────────────────────────────────────────────────────
 
 def apply_indicators(df: pd.DataFrame, ema_fast: int, ema_slow: int) -> pd.DataFrame:
-    """Add EMA columns to a DataFrame."""
+    """Add EMA columns using native pandas."""
     if len(df) < ema_slow + 5:
         return df
-    df[f"EMA_{ema_fast}"] = ta.ema(df["Close"], length=ema_fast)
-    df[f"EMA_{ema_slow}"] = ta.ema(df["Close"], length=ema_slow)
+    df[f"EMA_{ema_fast}"] = df["Close"].ewm(span=ema_fast, adjust=False).mean()
+    df[f"EMA_{ema_slow}"] = df["Close"].ewm(span=ema_slow, adjust=False).mean()
     return df
 
 
 def apply_daily_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Add daily SMA indicators."""
+    """Add daily SMA indicators using native pandas."""
     if len(df) >= 50:
-        df["SMA_50"] = ta.sma(df["Close"], length=50)
+        df["SMA_50"] = df["Close"].rolling(window=50).mean()
     if len(df) >= 100:
-        df["SMA_100"] = ta.sma(df["Close"], length=100)
+        df["SMA_100"] = df["Close"].rolling(window=100).mean()
     if len(df) >= 200:
-        df["SMA_200"] = ta.sma(df["Close"], length=200)
+        df["SMA_200"] = df["Close"].rolling(window=200).mean()
     return df
 
 
