@@ -6,3 +6,5 @@ plotly
 requests
 streamlit-autorefresh
 pytz
+numpy
+scipy
